@@ -1,0 +1,30 @@
+.gradle
+build/
+local.properties
+.idea/caches
+.idea/libraries
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+*.iml
+*.ipr
+*.iws
+.DS_Store
+capture/
+memory_roller/
+.cxx/
+*.keystore
+!debug.keystore
+
+# Android Studio
+.externalNativeBuild
+.navigation/
+
+# Gradle
+.gradle/
+build/
+
+# Kotlin
+core/
+.kotlin/
