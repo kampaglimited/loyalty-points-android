@@ -3,8 +3,15 @@ package com.loyalty.android.repository
 import android.content.Context
 import kotlinx.coroutines.delay
 
+sealed class AuthResult {
+    data class Success(val token: String) : AuthResult()
+    data object InvalidCredentials : AuthResult()
+    data class NetworkError(val message: String) : AuthResult()
+    data object AccountLocked : AuthResult()
+}
+
 interface AuthRepository {
-    suspend fun login(username: String, password: String): Result<String>
+    suspend fun login(username: String, password: String): AuthResult
     fun saveToken(token: String)
     fun getToken(): String?
     fun saveCredentials(username: String, password: String)
@@ -16,13 +23,13 @@ interface AuthRepository {
 class AuthRepositoryImpl(context: Context) : AuthRepository {
     private val prefs = context.getSharedPreferences("loyalty_prefs", Context.MODE_PRIVATE)
 
-    override suspend fun login(username: String, password: String): Result<String> {
+    override suspend fun login(username: String, password: String): AuthResult {
         // Mocked login logic with delay to show loading state
         delay(1000)
         return if (username == "admin" && password == "123456") {
-            Result.success("mock_token_${System.currentTimeMillis()}")
+            AuthResult.Success("mock_token_${System.currentTimeMillis()}")
         } else {
-            Result.failure(Exception("Invalid credentials"))
+            AuthResult.InvalidCredentials
         }
     }
 

@@ -4,36 +4,72 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.loyalty.android.di.AppModule
 import com.loyalty.android.repository.AuthRepository
+import com.loyalty.android.repository.AuthResult
 import com.loyalty.android.util.NetworkMonitor
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
+import dagger.hilt.android.testing.UninstallModules
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito.*
+import javax.inject.Inject
+import javax.inject.Singleton
 
+@HiltAndroidTest
+@UninstallModules(AppModule::class)
 @RunWith(AndroidJUnit4::class)
 class LoginUiTest {
 
-    @get:Rule
-    val composeTestRule = createAndroidComposeRule<TestActivity>()
+    private val hiltRule = HiltAndroidRule(this)
+    private val composeTestRule = createAndroidComposeRule<TestActivity>()
 
-    private lateinit var repository: AuthRepository
-    private lateinit var networkMonitor: NetworkMonitor
+    @get:Rule
+    val ruleChain: RuleChain = RuleChain.outerRule(hiltRule).around(composeTestRule)
+
+    @Inject
+    lateinit var repository: AuthRepository
+
+    @Inject
+    lateinit var networkMonitor: NetworkMonitor
+
+    @Inject
+    lateinit var viewModel: LoginViewModel
+
     private val isOnlineFlow = MutableStateFlow(true)
-    private lateinit var viewModel: LoginViewModel
+
+    @Module
+    @InstallIn(SingletonComponent::class)
+    object TestModule {
+        @Provides
+        @Singleton
+        fun provideAuthRepository(): AuthRepository = mock(AuthRepository::class.java)
+
+        @Provides
+        @Singleton
+        fun provideNetworkMonitor(): NetworkMonitor = mock(NetworkMonitor::class.java)
+
+        @Provides
+        @Singleton
+        fun provideLoginValidator(): com.loyalty.android.domain.LoginValidator = com.loyalty.android.domain.LoginValidator()
+    }
 
     @Before
     fun setup() {
-        repository = mock(AuthRepository::class.java)
-        networkMonitor = mock(NetworkMonitor::class.java)
+        hiltRule.inject()
         `when`(networkMonitor.isOnline).thenReturn(isOnlineFlow)
         `when`(repository.getSavedUsername()).thenReturn(null)
-        
-        viewModel = LoginViewModel(repository, networkMonitor)
     }
 
     private fun setContentWithStabilization() {
@@ -88,7 +124,7 @@ class LoginUiTest {
     @Test
     fun testFailedLoginShowsError() {
         runBlocking {
-            `when`(repository.login(anyString(), anyString())).thenReturn(Result.failure(Exception("Invalid")))
+            `when`(repository.login(anyString(), anyString())).thenReturn(AuthResult.InvalidCredentials)
         }
         setContentWithStabilization()
 
@@ -103,7 +139,7 @@ class LoginUiTest {
     @Test
     fun testLockoutFlow() {
         runBlocking {
-            `when`(repository.login(anyString(), anyString())).thenReturn(Result.failure(Exception("Failed")))
+            `when`(repository.login(anyString(), anyString())).thenReturn(AuthResult.InvalidCredentials)
         }
         setContentWithStabilization()
 
@@ -124,7 +160,7 @@ class LoginUiTest {
     @Test
     fun testSuccessfulLoginFlow() {
         runBlocking {
-            `when`(repository.login("admin", "123456")).thenReturn(Result.success("test-token"))
+            `when`(repository.login("admin", "123456")).thenReturn(AuthResult.Success("test-token"))
         }
         setContentWithStabilization()
 
@@ -139,7 +175,7 @@ class LoginUiTest {
     @Test
     fun testOfflineBannerVisibility() {
         runBlocking {
-            `when`(repository.login("admin", "123456")).thenReturn(Result.success("token"))
+            `when`(repository.login("admin", "123456")).thenReturn(AuthResult.Success("token"))
         }
         setContentWithStabilization()
 
@@ -154,7 +190,7 @@ class LoginUiTest {
     @Test
     fun testLogoutReturnsToLogin() {
         runBlocking {
-            `when`(repository.login("admin", "123456")).thenReturn(Result.success("token"))
+            `when`(repository.login("admin", "123456")).thenReturn(AuthResult.Success("token"))
         }
         setContentWithStabilization()
 

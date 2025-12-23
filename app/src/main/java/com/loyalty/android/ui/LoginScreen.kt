@@ -15,19 +15,26 @@ import androidx.compose.ui.unit.dp
 fun LoginScreen(viewModel: LoginViewModel) {
     val uiState by viewModel.uiState.collectAsState()
 
-    if (uiState.navigateToHome) {
-        HomeView(
-            token = uiState.errorMessage ?: "No Token Found",
-            isOnline = uiState.isOnline,
-            onLogout = { viewModel.onLogoutClicked() }
-        )
-    } else {
-        LoginContent(uiState, viewModel)
+    when (val status = uiState.status) {
+        is LoginStatus.Success -> {
+            HomeView(
+                token = status.token,
+                isOnline = uiState.isOnline,
+                onLogout = { viewModel.onLogoutClicked() }
+            )
+        }
+        else -> {
+            LoginContent(uiState, viewModel)
+        }
     }
 }
 
 @Composable
 fun LoginContent(uiState: LoginUiState, viewModel: LoginViewModel) {
+    val status = uiState.status
+    val isLoading = status is LoginStatus.Loading
+    val isLockedOut = status is LoginStatus.LockedOut
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -45,7 +52,7 @@ fun LoginContent(uiState: LoginUiState, viewModel: LoginViewModel) {
             value = uiState.username,
             onValueChange = { viewModel.onUsernameChanged(it) },
             label = { Text("Username") },
-            enabled = !uiState.isLoading && !uiState.isLockedOut,
+            enabled = !isLoading && !isLockedOut,
             modifier = Modifier.fillMaxWidth().testTag("username_field")
         )
         
@@ -55,7 +62,7 @@ fun LoginContent(uiState: LoginUiState, viewModel: LoginViewModel) {
             value = uiState.password,
             onValueChange = { viewModel.onPasswordChanged(it) },
             label = { Text("Password") },
-            enabled = !uiState.isLoading && !uiState.isLockedOut,
+            enabled = !isLoading && !isLockedOut,
             modifier = Modifier.fillMaxWidth().testTag("password_field")
         )
         
@@ -77,26 +84,33 @@ fun LoginContent(uiState: LoginUiState, viewModel: LoginViewModel) {
 
         Button(
             onClick = { viewModel.onLoginClicked() },
-            enabled = uiState.isLoginEnabled && !uiState.isLoading && !uiState.isLockedOut,
+            enabled = uiState.isLoginEnabled,
             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("login_button")
         ) {
-            Text(if (uiState.isLoading) "Logging in..." else "Login")
+            Text(if (isLoading) "Logging in..." else "Login")
         }
 
-        if (uiState.errorMessage != null && !uiState.navigateToHome) {
-            Text(
-                text = uiState.errorMessage!!,
-                color = Color.Red,
-                modifier = Modifier.padding(top = 16.dp).testTag("error_message")
-            )
-        }
-
-        if (uiState.isLockedOut) {
-            Text(
-                text = "Contact support to unlock your account.",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+        when (status) {
+            is LoginStatus.Error -> {
+                Text(
+                    text = status.message,
+                    color = Color.Red,
+                    modifier = Modifier.padding(top = 16.dp).testTag("error_message")
+                )
+            }
+            is LoginStatus.LockedOut -> {
+                Text(
+                    text = "Account locked",
+                    color = Color.Red,
+                    modifier = Modifier.padding(top = 16.dp).testTag("error_message")
+                )
+                Text(
+                    text = "Contact support to unlock your account.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+            else -> {}
         }
     }
 }

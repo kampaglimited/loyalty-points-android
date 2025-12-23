@@ -2,17 +2,24 @@ package com.loyalty.android.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.loyalty.android.domain.LoginValidator
+import com.loyalty.android.domain.ValidationResult
 import com.loyalty.android.repository.AuthRepository
+import com.loyalty.android.repository.AuthResult
 import com.loyalty.android.util.NetworkMonitor
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class LoginViewModel(
+@HiltViewModel
+class LoginViewModel @Inject constructor(
     private val repository: AuthRepository,
-    private val networkMonitor: NetworkMonitor
+    private val networkMonitor: NetworkMonitor,
+    private val loginValidator: LoginValidator
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -37,9 +44,17 @@ class LoginViewModel(
         viewModelScope.launch {
             networkMonitor.isOnline.collect { isOnline ->
                 _uiState.update { state ->
+                    val updatedStatus = if (!isOnline && state.status !is LoginStatus.Success) {
+                        LoginStatus.Error("Network unavailable", loginAttempts)
+                    } else if (isOnline && state.status is LoginStatus.Error && (state.status as LoginStatus.Error).message == "Network unavailable") {
+                        LoginStatus.Idle
+                    } else {
+                        state.status
+                    }
+                    
                     state.copy(
                         isOnline = isOnline,
-                        errorMessage = if (!isOnline && !state.navigateToHome) "Network unavailable" else if (isOnline && state.errorMessage == "Network unavailable") null else state.errorMessage
+                        status = updatedStatus
                     )
                 }
                 validate()
@@ -56,9 +71,7 @@ class LoginViewModel(
             username = savedUser ?: "",
             password = savedPass ?: "",
             rememberMe = savedUser != null,
-            navigateToHome = false, 
-            errorMessage = if (!isOnline) "Network unavailable" else null,
-            isLoading = false
+            status = if (!isOnline) LoginStatus.Error("Network unavailable", loginAttempts) else LoginStatus.Idle
         ) }
         validate()
     }
@@ -79,57 +92,68 @@ class LoginViewModel(
 
     private fun validate() {
         val state = _uiState.value
-        val isValid = state.username.trim().isNotEmpty() && 
-                      state.password.trim().length >= 6 &&
+        val validationResult = loginValidator.validateCredentials(state.username, state.password)
+        
+        val isValid = validationResult is ValidationResult.Success && 
                       state.isOnline && 
-                      !state.isLoading && 
-                      !state.isLockedOut
+                      state.status !is LoginStatus.Loading && 
+                      state.status !is LoginStatus.LockedOut
         
         _uiState.update { it.copy(isLoginEnabled = isValid) }
     }
 
     fun onLoginClicked() {
-        if (_uiState.value.isLockedOut) return
+        if (_uiState.value.status is LoginStatus.LockedOut) return
 
         viewModelScope.launch {
             val isOnline = networkMonitor.isOnline.first()
             if (!isOnline) {
-                _uiState.update { it.copy(errorMessage = "Network unavailable") }
+                _uiState.update { it.copy(status = LoginStatus.Error("Network unavailable", loginAttempts)) }
                 return@launch
             }
 
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            _uiState.update { it.copy(status = LoginStatus.Loading) }
             validate()
             
             val trimmedUser = _uiState.value.username.trim()
             val trimmedPass = _uiState.value.password.trim()
             val result = repository.login(trimmedUser, trimmedPass)
-            // ...
             
-            if (result.isSuccess) {
-                loginAttempts = 0
-                val token = result.getOrThrow()
-                if (_uiState.value.rememberMe) {
-                    repository.saveToken(token)
-                    repository.saveCredentials(_uiState.value.username, _uiState.value.password)
-                } else {
-                    repository.clearCredentials()
+            when (result) {
+                is AuthResult.Success -> {
+                    loginAttempts = 0
+                    val token = result.token
+                    if (_uiState.value.rememberMe) {
+                        repository.saveToken(token)
+                        repository.saveCredentials(_uiState.value.username, _uiState.value.password)
+                    } else {
+                        repository.clearCredentials()
+                    }
+                    _uiState.update { it.copy(
+                        status = LoginStatus.Success("Saved Token: ${repository.getToken() ?: "None"}")
+                    ) }
+                    validate()
                 }
-                _uiState.update { it.copy(
-                    isLoading = false, 
-                    navigateToHome = true,
-                    errorMessage = "Saved Token: ${repository.getToken() ?: "None"}"
-                ) }
-                validate()
-            } else {
-                loginAttempts++
-                val isLocked = loginAttempts >= MAX_ATTEMPTS
-                _uiState.update { it.copy(
-                    isLoading = false,
-                    isLockedOut = isLocked,
-                    errorMessage = if (isLocked) "Account locked" else "Invalid credentials. Attempt $loginAttempts/$MAX_ATTEMPTS"
-                ) }
-                validate()
+                is AuthResult.InvalidCredentials -> {
+                    loginAttempts++
+                    val isLocked = loginAttempts >= MAX_ATTEMPTS
+                    val message = if (isLocked) "Account locked" else "Invalid credentials. Attempt $loginAttempts/$MAX_ATTEMPTS"
+                    
+                    _uiState.update { it.copy(
+                        status = if (isLocked) LoginStatus.LockedOut else LoginStatus.Error(message, loginAttempts)
+                    ) }
+                    validate()
+                }
+                is AuthResult.NetworkError -> {
+                    _uiState.update { it.copy(
+                        status = LoginStatus.Error(result.message, loginAttempts)
+                    ) }
+                    validate()
+                }
+                is AuthResult.AccountLocked -> {
+                    _uiState.update { it.copy(status = LoginStatus.LockedOut) }
+                    validate()
+                }
             }
         }
     }

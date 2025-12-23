@@ -5,11 +5,14 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import android.util.Log
 
+import dagger.hilt.android.AndroidEntryPoint
+
 /**
  * An empty activity used for hosting isolated Compose tests.
  * Includes window flags to prevent the screen from locking or turning off
  * during automated test execution.
  */
+@AndroidEntryPoint
 class TestActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
