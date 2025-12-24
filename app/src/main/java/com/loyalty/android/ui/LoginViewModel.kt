@@ -137,7 +137,7 @@ class LoginViewModel @Inject constructor(
                 is AuthResult.InvalidCredentials -> {
                     loginAttempts++
                     val isLocked = loginAttempts >= MAX_ATTEMPTS
-                    val message = if (isLocked) "Account locked" else "Invalid credentials. Attempt $loginAttempts/$MAX_ATTEMPTS"
+                    val message = if (isLocked) "Account locked" else "${result.message}. Attempt $loginAttempts/$MAX_ATTEMPTS"
                     
                     _uiState.update { it.copy(
                         status = if (isLocked) LoginStatus.LockedOut else LoginStatus.Error(message, loginAttempts)

@@ -138,7 +138,7 @@ class LoginViewModelTest {
 
     @Test
     fun `Lockout after 3 failures`() = runTest {
-        `when`(repository.login(anyString(), anyString())).thenReturn(AuthResult.InvalidCredentials)
+        `when`(repository.login(anyString(), anyString())).thenReturn(AuthResult.InvalidCredentials("Incorrect password"))
         viewModel.onUsernameChanged("admin")
         viewModel.onPasswordChanged("123456")
 
@@ -151,7 +151,7 @@ class LoginViewModelTest {
 
     @Test
     fun `Single failure shows attempt count`() = runTest {
-        `when`(repository.login(anyString(), anyString())).thenReturn(AuthResult.InvalidCredentials)
+        `when`(repository.login(anyString(), anyString())).thenReturn(AuthResult.InvalidCredentials("Incorrect password"))
         viewModel.onUsernameChanged("admin")
         viewModel.onPasswordChanged("123456")
 
@@ -159,7 +159,7 @@ class LoginViewModelTest {
 
         val status = viewModel.uiState.value.status
         assertTrue(status is LoginStatus.Error)
-        assertEquals("Invalid credentials. Attempt 1/3", (status as LoginStatus.Error).message)
+        assertEquals("Incorrect password. Attempt 1/3", (status as LoginStatus.Error).message)
     }
 
     @Test

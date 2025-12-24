@@ -124,7 +124,7 @@ class LoginUiTest {
     @Test
     fun testFailedLoginShowsError() {
         runBlocking {
-            `when`(repository.login(anyString(), anyString())).thenReturn(AuthResult.InvalidCredentials)
+            `when`(repository.login(anyString(), anyString())).thenReturn(AuthResult.InvalidCredentials("Incorrect password"))
         }
         setContentWithStabilization()
 
@@ -133,13 +133,13 @@ class LoginUiTest {
         composeTestRule.onNodeWithTag("login_button").performClick()
 
         composeTestRule.onNodeWithTag("error_message").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Invalid credentials. Attempt 1/3").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Incorrect password. Attempt 1/3").assertIsDisplayed()
     }
 
     @Test
     fun testLockoutFlow() {
         runBlocking {
-            `when`(repository.login(anyString(), anyString())).thenReturn(AuthResult.InvalidCredentials)
+            `when`(repository.login(anyString(), anyString())).thenReturn(AuthResult.InvalidCredentials("Incorrect password"))
         }
         setContentWithStabilization()
 

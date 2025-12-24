@@ -5,7 +5,7 @@ import kotlinx.coroutines.delay
 
 sealed class AuthResult {
     data class Success(val token: String) : AuthResult()
-    data object InvalidCredentials : AuthResult()
+    data class InvalidCredentials(val message: String) : AuthResult()
     data class NetworkError(val message: String) : AuthResult()
     data object AccountLocked : AuthResult()
 }
@@ -24,12 +24,27 @@ class AuthRepositoryImpl(context: Context) : AuthRepository {
     private val prefs = context.getSharedPreferences("loyalty_prefs", Context.MODE_PRIVATE)
 
     override suspend fun login(username: String, password: String): AuthResult {
+        // NOTE: This is a mocked authentication implementation for demonstration purposes.
+        // In a production environment, this would perform a secure network request to an auth server.
+        // The following credentials are provided for testing and demo flows.
+        val testAccounts = mapOf(
+            "admin" to "123456",
+            "user1" to "password123",
+            "tester" to "testpass"
+        )
+
         // Mocked login logic with delay to show loading state
         delay(1000)
-        return if (username == "admin" && password == "123456") {
-            AuthResult.Success("mock_token_${System.currentTimeMillis()}")
+
+        val expectedPassword = testAccounts[username]
+        return if (expectedPassword != null) {
+            if (expectedPassword == password) {
+                AuthResult.Success("mock_token_${System.currentTimeMillis()}")
+            } else {
+                AuthResult.InvalidCredentials("Incorrect password")
+            }
         } else {
-            AuthResult.InvalidCredentials
+            AuthResult.InvalidCredentials("User not found")
         }
     }
 
