@@ -3,6 +3,7 @@ package com.loyalty.android.ui
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.loyalty.android.di.AppModule
 import com.loyalty.android.repository.AuthRepository
@@ -44,8 +45,7 @@ class LoginUiTest {
     @Inject
     lateinit var networkMonitor: NetworkMonitor
 
-    @Inject
-    lateinit var viewModel: LoginViewModel
+    private lateinit var viewModel: LoginViewModel
 
     private val isOnlineFlow = MutableStateFlow(true)
 
@@ -68,8 +68,14 @@ class LoginUiTest {
     @Before
     fun setup() {
         hiltRule.inject()
+        
+        // Configure mocks BEFORE initializing the ViewModel
+        // This prevents NPE when the ViewModel's init block accesses these properties
         `when`(networkMonitor.isOnline).thenReturn(isOnlineFlow)
         `when`(repository.getSavedUsername()).thenReturn(null)
+        
+        // Retrieve ViewModel via Provider
+        viewModel = ViewModelProvider(composeTestRule.activity).get(LoginViewModel::class.java)
     }
 
     private fun setContentWithStabilization() {
